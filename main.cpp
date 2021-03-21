@@ -3,13 +3,17 @@
 #include <cstdio>
 #include <cstdlib>
 #include <string>
+#include <sstream>
 #include "Verse.h"
 #include "Ref.h"
 #include "Bible.h"
+#include "BibleLookupClient.h"
 using namespace std;
 
+static const std::string pipe_id_receive = "B-Reply";
+static const std::string pipe_id_send = "B-Request";
+
 int main (int argc, char **argv) {
-    Bible bible("/home/class/csc3004/Bibles/web-complete"); //Bible Object
     int length = 1; //# of verses
     int book, chap, ver; //Bible param
 
@@ -32,38 +36,38 @@ int main (int argc, char **argv) {
     chap = atoi(argv[2]);
     ver = atoi(argv[3]);
 
-    if(argc >= 5) {
+    if(argc >= 5)
         length = atoi(argv[4]);
-    }
 
     Ref ref(book, chap, ver); //Creating reference
+    BibleLookupClient client(pipe_id_send, pipe_id_receive, Bible::getDefaultVersion());
     LookupResult result;
-    Verse verse = bible.lookup(Ref(book, chap, ver), result);
+    Verse verse = client.lookup(ref, result);
 
     if(result == SUCCESS) {
         int currentChapter = -1;
         for(int i = 0; i < length && result == SUCCESS; i++) {
             if(verse.getRef().getChapter() != currentChapter) {
                 currentChapter = verse.getRef().getChapter();
-                cout << verse.getRef().getBook() << " \n" << verse.getRef().getChapter() << endl;
+                cout << verse.getRef().getBookName() << " \n" << verse.getRef().getChapter() << endl;
             }
             cout << " \n" << verse.getRef().getVerse() << " " << verse.getVerse() << endl;
-            Ref nextRef = bible.next(verse.getRef(), result);
+            Ref nextRef = client.next(verse.getRef(), result);
 
             if(nextRef.getBook() != ref.getBook())
                 break;
             if(result == SUCCESS)
-                verse = bible.lookup(nextRef, result);
+                verse = client.lookup(nextRef, result);
         }
     }
 
     else {
         switch(result) {
             case NO_CHAPTER:
-                cerr << " in " << ref.getBook();
+                cerr << " in " << ref.getBookName();
                 break;
             case NO_VERSE:
-                cerr << " in " << ref.getBook() << " " << chap;
+                cerr << " in " << ref.getBookName() << " " << chap;
                 break;
             case SUCCESS:
                 break;

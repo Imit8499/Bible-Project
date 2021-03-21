@@ -1,6 +1,7 @@
 #include "Ref.h"
 #include <iostream>
 #include <string>
+#include <sstream>
 using namespace std;
 
 string GetNextToken(string& str, const string& delimiters = " ") {
@@ -44,15 +45,21 @@ Ref::verse_ref Ref::getVerse(){
     return verse;
 }
 
-bool Ref::operator==(const Ref &r) {
+bool Ref::operator==(const Ref &r) const{
     return book == r.book && chapter == r.chapter && verse == r.verse;
 }
-bool Ref::operator<(const Ref &r) {
+bool Ref::operator<(const Ref &r) const{
     return book < r.book || (book == r.book && chapter < r.chapter) || (book == r.book && chapter == r.chapter && verse < r.verse);
 }
 
-void Ref::display() {
-    cout << getBook() << ": " << chapter << " \n" << verse;
+std::string Ref::toString() const {
+    std::stringstream ss;
+    ss << book << ":" << chapter << ":" << verse;
+    return ss.str();
+}
+
+void Ref::display() { //Use book name instead of number
+    cout << getBookName() << " " << chapter << ":" << verse;
 }
 
 string Ref::getBookName(){

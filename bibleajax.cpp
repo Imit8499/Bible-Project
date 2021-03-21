@@ -11,7 +11,10 @@ using namespace std;
 using namespace cgicc;
 
 #include "Bible.h"
-
+#include "BibleLookupClient.h"
+#define logging
+#define LOG_FILENAME "/tmp/isatanner-bibleajax.log"
+#include "logfile.h"
 
 static bool checkInteger(std::string s) { //checks if a string is an integer
     static const std::string integer_chars = "-0123456789";

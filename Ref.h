@@ -36,11 +36,13 @@ public:
     verse_ref getVerse();
 
     string getBookName();
+    std::string toString() const;
 
-    bool operator==(const Ref &);
-    bool operator<(const Ref &);
-    bool operator!=(const Ref &r) {return !(*this == r);}
-    bool operator>(const Ref &r) {return !(*this == r || *this < r);}
+
+    bool operator==(const Ref &) const;
+    bool operator<(const Ref &) const;
+    bool operator!=(const Ref &r) const {return !(*this == r);}
+    bool operator>(const Ref &r) const {return !(*this == r || *this < r);}
 
     void display();
 };

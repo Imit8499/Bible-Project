@@ -17,6 +17,10 @@ static std::map<std::string, std::string> bibleVersions = {
         {"ylt", "/home/class/csc3004/Bibles/ylt-complete"},
 };
 
+std::string Bible::getDefaultVersion() {
+    return "web";
+}
+
 bool Bible::versionExists(std::string version) {
     return bibleVersions.count(version) > 0;
 }
@@ -25,99 +29,110 @@ std::string Bible::versionToFile(std::string version) {
     return versionExists(version) ? bibleVersions.at(version) : "";
 }
 
-Bible::Bible() { //Default Constructor
-    infile = "/home/class/csc3004/Bibles/webster-complete";
-    isOpen = hasScanned = hasPrevious = false;
-}
-
-Bible::Bible(const string s) {
-    infile = s;
-    isOpen = hasScanned = hasPrevious = false;
-}
-
-bool Bible::resetFile() {
-    hasScanned = false;
-    hasPrevious = false;
-
-    if(isOpen) {
-        instream.clear();
-        instream.seekg(0, ios::beg);
-        return true;
+std::list<std::string> Bible::getVersionList(){
+    std::list<std::string> result;
+    for(auto const &pair : bibleVersions) {
+        result.push_back(pair.first);
     }
+    return result;
+}
 
+Bible::Bible() : Bible(versionToFile(getDefaultVersion())){ //Default Constructor
+    //infile = "/home/class/csc3004/Bibles/webster-complete";
+    //isOpen = hasScanned = hasPrevious = false;
+}
+
+Bible::Bible(const string s) : infile(s), isValid(false) {
+    instream.open(infile, ios::in); //Build index if valid
+    if(instream) {
+        isValid = true;
+        buildIndex();
+    }
+}
+
+bool Bible::valid() {
+    return isValid;
+}
+
+void Bible::buildIndex() {
+    std::string buffer;
+    std::streampos pos = instream.tellg();
+
+    while(getline(instream, buffer)){
+        if(!buffer.empty()) {
+            Ref ref(buffer);
+            index[ref] = pos;
+        }
+        pos = instream.tellg();
+    }
+}
+
+LookupResult Bible::getRefLookupStatus(Ref ref) {
+    if(index.count(ref))//Check if Ref exists
+        return SUCCESS;
     else {
-        instream.open(infile, ios::in);
-        if(instream) {
-            isOpen = true; //If file is open
-            instream.unsetf(ios::skipws);
-            return true;
+        Ref bookt(ref.getBook(), Ref::MIN_CHAPTER_REF, Ref::MIN_VERSE_REF);
+        if(index.count(bookt)) { //Does the book exist?
+            Ref chaptert(ref.getBook(), ref.getChapter(), Ref::MIN_VERSE_REF);
+            if(index.count(chaptert)) //Does the chapter exist?
+                return NO_VERSE;
+            else
+                return NO_CHAPTER;
         }
-
-        else {
-            cerr << "Error" << infile << endl;
-            return false;
-        }
+        else
+            return NO_BOOK;
     }
-}
-
-bool Bible::scanNext() { // Reads next line
-    string buffer;
-    getline(instream, buffer);
-    bool check = !instream.fail() && !buffer.empty();
-    if(check) {
-        previousVerse = currentVerse; //Preserve prior verse
-        hasPrevious = hasScanned;
-        currentVerse = Verse(buffer); //Update verse
-        hasScanned = true;
-    }
-    return check;
-}
-
-void Bible::scanTo(Ref ref, LookupResult& status) {
-    if((!isOpen) || (hasScanned && getCurrentVerse().getRef() > ref)) {
-        if(!resetFile()) {status = ELSE;return;}
-    }
-
-    if(!hasScanned) {scanNext();}
-
-    bool foundBook = false;
-    bool foundChapter = false;
-
-    for(bool check = hasScanned; check; check = scanNext()) {
-        Ref currentRef = getCurrentVerse().getRef();
-        if(ref.getBook() == currentRef.getBook()) {
-            foundBook = true;
-            if(ref.getChapter() == currentRef.getChapter()) {
-                foundChapter = true;
-            }
-        }
-        if(ref == currentRef) {status = SUCCESS;return;}
-    }
-    if(!foundBook) {status = NO_BOOK;}
-    else if(!foundChapter) {status = NO_CHAPTER;}
-    else {status = NO_VERSE;}
 }
 
 const Verse Bible::lookup(Ref ref, LookupResult& status) {
-    scanTo(ref, status);
-    return status == SUCCESS ? getCurrentVerse() : Verse();
+    status = getRefLookupStatus(ref);
+    if(status == SUCCESS) {
+        std::string buffer;
+
+        instream.clear(); // Reset and seek ref
+        instream.seekg(index[ref]);
+        getline(instream, buffer); // Get Verse line
+
+        if(buffer.empty())
+            status = ELSE;
+        return Verse(buffer);
+    }
+    else
+        return Verse(); // dummy return
 }
 
 const Ref Bible::next(Ref ref, LookupResult& status) {
-    scanTo(ref, status);
-    if(status == SUCCESS) {
-        if(!scanNext()){
-            status = NO_BOOK;}
+    status = getRefLookupStatus(ref);
+    if(status != SUCCESS)
+        return Ref();
+
+    std::map<Ref, std::streampos>::iterator i = index.find(ref); //Return next Ref after iterator can increment
+
+    if(++i != index.end()) {
+        status = SUCCESS;
+        return i->first;
     }
-    return status == SUCCESS ? getCurrentVerse().getRef() : Ref();
+    else {
+        status = NO_BOOK;
+        return Ref();
+    }
 }
 
 const Ref Bible::prev(Ref ref, LookupResult& status) {
-    scanTo(ref, status);
-    if(status == SUCCESS && !hasPrevious){
-        status = NO_BOOK;
+    status = getRefLookupStatus(ref);
+    if(status != SUCCESS)
+        return Ref();
+
+    std::map<Ref, std::streampos>::iterator i = index.find(ref); //Return previous Ref after iterator can decrement
+    if(i != index.begin()) {
+        --i;
+        status = SUCCESS;
+        return i->first;
     }
-    return status == SUCCESS ? getPreviousVerse().getRef() : Ref();
+    else {
+        status = NO_BOOK;
+        return Ref();
+    }
 }
 
 const string Bible::error(LookupResult status) {
